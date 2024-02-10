@@ -40,13 +40,14 @@ public class Server {
                         new InputStreamReader(clientSocket.getInputStream()));
                 System.out.println(String.format("Recieved message on from %s on port %s",
                         clientSocket.getLocalAddress(), clientSocket.getLocalPort()));
-                String inputLine = in.readLine();
-                System.out.println(inputLine);
-                System.out.println("Replied with Hello message");
-                out.println("Pong");
-                in.close();
-                out.close();
 
+                String inputLine;
+                while (true) {
+                    inputLine = in.readLine();
+                    System.out.println(inputLine);
+                    out.println("Pong");
+                    System.out.println("Replied with Pong message");
+                }
             } catch (IOException e) {
                 System.err.println(e);
             }

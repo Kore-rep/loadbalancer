@@ -52,14 +52,15 @@ public class LoadBalancer {
                         clientSocket.getLocalAddress(), clientSocket.getLocalPort()));
 
                 String inputLine = clientIn.readLine();
+                System.out.println("Client requested: " + inputLine);
                 // Forward messages to Server
                 serverOut.println(inputLine);
                 System.out.println("Forwarded to server");
 
-                while ((inputLine = serverIn.readLine()) != null) {
-                    // Send response from server to client
-                    clientOut.println(inputLine);
-                }
+                inputLine = serverIn.readLine();
+                System.out.println("Sever replied: " + inputLine);
+                // Send response from server to client
+                clientOut.println(inputLine);
                 System.out.println("Forwarded server reply");
                 clientIn.close();
                 clientOut.close();
