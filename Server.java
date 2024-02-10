@@ -6,11 +6,12 @@ public class Server {
 
     public void start(int port) {
         try {
+
             serverSocket = new ServerSocket(port);
 
             System.out.println("Listening on port" + port);
             while (true)
-                new ClientHandler(serverSocket.accept()).start();
+                new ClientHandler(serverSocket.accept(), port).start();
         } catch (IOException e) {
             System.err.println(e);
         }
@@ -28,9 +29,11 @@ public class Server {
         private Socket clientSocket;
         private PrintWriter out;
         private BufferedReader in;
+        private int port;
 
-        public ClientHandler(Socket socket) {
+        public ClientHandler(Socket socket, int port) {
             this.clientSocket = socket;
+            this.port = port;
         }
 
         public void run() {
@@ -45,7 +48,7 @@ public class Server {
                 while (true) {
                     inputLine = in.readLine();
                     System.out.println(inputLine);
-                    out.println("Pong");
+                    out.println("Pong from server on port: " + port);
                     System.out.println("Replied with Pong message");
                 }
             } catch (IOException e) {

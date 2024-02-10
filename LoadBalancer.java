@@ -90,7 +90,10 @@ public class LoadBalancer {
 
     public static void main(String[] args) {
         System.out.println("Booting");
-        int[] sockets = new int[] { 5555, 5556, 5557 };
+        int[] sockets = new int[args.length];
+        for (int i = 0; i < args.length; i++) {
+            sockets[i] = Integer.parseInt(args[i]);
+        }
         LoadBalancer lb = new LoadBalancer(sockets);
         lb.start(5555, "127.0.0.1", 80);
         Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {

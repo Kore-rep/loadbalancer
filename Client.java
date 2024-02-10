@@ -46,15 +46,15 @@ public class Client {
     public static void main(String[] args) {
         Client c = new Client();
         c.startConnection("127.0.0.1", 80);
-
-        String resp = c.sendMessage("Ping");
-        System.out.println(resp);
         Scanner in = new Scanner(System.in);
-        c.stopConnection();
-        in.nextLine();
-        c.startConnection("127.0.0.1", 80);
-        resp = c.sendMessage("Pinging");
-        System.out.println(resp);
-        System.exit(0);
+        String inputLine = "";
+        while (!"q".equals(inputLine)) {
+            inputLine = in.nextLine().trim();
+            c.startConnection("127.0.0.1", 80);
+            String resp = c.sendMessage(inputLine);
+            System.out.println(resp);
+            c.stopConnection();
+        }
+        in.close();
     }
 }
