@@ -1,27 +1,43 @@
-
 import java.io.*;
 import java.net.*;
 
 public class LoadBalancer {
-    private Socket serverSocket;
+    private Socket[] serverSockets;
     private ServerSocket clientSocket;
+    private int[] serverPorts;
+    private int currentServer;
+
+    public LoadBalancer(int[] ports) {
+        serverPorts = ports;
+        serverSockets = new Socket[serverPorts.length];
+        currentServer = 0;
+    }
 
     public void start(int serverPort, String ip, int clientPort) {
         try {
-            serverSocket = new Socket(ip, serverPort);
+            for (int i = 0; i < serverPorts.length; i++) {
+                serverSockets[i] = new Socket(ip, serverPorts[i]);
+                System.out.println("Connecting to server on port " + serverPorts[i]);
+            }
             clientSocket = new ServerSocket(clientPort);
             System.out.println("Listening for client on port " + clientPort);
-            System.out.println("Connecting to server on port " + serverPort);
             while (true)
-                new ClientHandler(clientSocket.accept(), serverSocket).start();
+                new ClientHandler(clientSocket.accept(), getNextServer()).start();
         } catch (IOException e) {
             System.err.println(e);
         }
     }
 
+    // Round-robin load balancing
+    public Socket getNextServer() {
+        return serverSockets[currentServer++ % serverSockets.length];
+    }
+
     public void stop() {
         try {
-            serverSocket.close();
+            for (Socket s : serverSockets) {
+                s.close();
+            }
             clientSocket.close();
         } catch (IOException e) {
             System.err.println(e);
@@ -74,7 +90,8 @@ public class LoadBalancer {
 
     public static void main(String[] args) {
         System.out.println("Booting");
-        LoadBalancer lb = new LoadBalancer();
+        int[] sockets = new int[] { 5555, 5556, 5557 };
+        LoadBalancer lb = new LoadBalancer(sockets);
         lb.start(5555, "127.0.0.1", 80);
         Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
             public void run() {

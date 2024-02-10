@@ -57,7 +57,7 @@ public class Server {
     public static void main(String[] args) {
         System.out.println("Booting");
         Server serv = new Server();
-        serv.start(5555);
+        serv.start(Integer.parseInt(args[0]));
         Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
             public void run() {
                 serv.stop();

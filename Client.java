@@ -49,8 +49,8 @@ public class Client {
 
         String resp = c.sendMessage("Ping");
         System.out.println(resp);
-        c.stopConnection();
         Scanner in = new Scanner(System.in);
+        c.stopConnection();
         in.nextLine();
         c.startConnection("127.0.0.1", 80);
         resp = c.sendMessage("Pinging");
