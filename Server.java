@@ -9,7 +9,7 @@ public class Server {
 
             serverSocket = new ServerSocket(port);
 
-            System.out.println("Listening on port" + port);
+            System.out.println("Listening on port " + port);
             while (true)
                 new ClientHandler(serverSocket.accept(), port).start();
         } catch (IOException e) {
@@ -46,10 +46,19 @@ public class Server {
 
                 String inputLine;
                 while (true) {
+                    System.out.println("Waiting for input");
                     inputLine = in.readLine();
-                    System.out.println(inputLine);
-                    out.println("Pong from server on port: " + port);
-                    System.out.println("Replied with Pong message");
+                    if (inputLine == null) {
+                        continue;
+                    }
+                    System.out.println("Recieved: " + inputLine);
+                    if (inputLine.trim().equals("health")) {
+                        out.println("healthy");
+                    } else {
+                        System.out.println(inputLine);
+                        out.println("Pong from server on port: " + port);
+                        System.out.println("Replied with Pong message");
+                    }
                 }
             } catch (IOException e) {
                 System.err.println(e);
@@ -60,6 +69,7 @@ public class Server {
     public static void main(String[] args) {
         System.out.println("Booting");
         Server serv = new Server();
+        args = new String[] { "5555" };
         serv.start(Integer.parseInt(args[0]));
         Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
             public void run() {
