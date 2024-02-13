@@ -11,6 +11,7 @@ public class LoadBalancer {
     private Timer[] healthCheckTimers;
     private final int SOCKET_TIMEOUT = 2;
     private final int HEALTH_CHECK_INTERVAL = 5000;
+    private final LoggingUtils logging;
 
     private HashMap<Integer, SocketInformation> socketTable;
 
@@ -19,12 +20,13 @@ public class LoadBalancer {
         healthCheckTimers = new Timer[serverPorts.length];
         currentServer = 0;
         socketTable = new HashMap<>();
+        logging = new LoggingUtils();
     }
 
     public void start(String ip, int clientPort) {
         try {
             for (int i = 0; i < serverPorts.length; i++) {
-                System.out.println("Registering port " + serverPorts[i]);
+                logging.logInfo("Registering port " + serverPorts[i]);
                 try {
                     SocketInformation socketInfo = new SocketInformation(serverPorts[i], ip, null, null, false);
                     socketTable.put(serverPorts[i], socketInfo);
@@ -36,11 +38,11 @@ public class LoadBalancer {
                 } catch (UnknownHostException e) {
 
                 } catch (IOException e) {
-                    System.out.println("Unable to connect to port");
+                    logging.logErr("Unable to connect to port " + serverPorts[i]);
                 }
             }
             clientSocket = new ServerSocket(clientPort);
-            System.out.println("Listening for client on port " + clientPort);
+            logging.logInfo("Listening for client on port " + clientPort);
             while (true)
                 new ClientHandler(clientSocket.accept(), getNextServer()).start();
         } catch (IOException e) {
@@ -48,17 +50,11 @@ public class LoadBalancer {
         }
     }
 
-    public void healthCheck() {
-        System.out.println("Performing health check on port " + serverPorts[0]);
-        new Timer().schedule(new HealthCheckHandler(serverPorts[0]), 1000);
-    }
-
     // Round-robin load balancing
     public SocketInformation getNextServer() {
         SocketInformation server = socketTable.get(serverPorts[currentServer % serverPorts.length]);
         while (!server.isHealthy()) {
-            currentServer++;
-            server = socketTable.get(serverPorts[currentServer % serverPorts.length]);
+            server = socketTable.get(serverPorts[currentServer++ % serverPorts.length]);
         }
         currentServer++;
         return server;
@@ -70,16 +66,16 @@ public class LoadBalancer {
                 try {
                     socketInfo.disconnect();
                 } catch (IOException e) {
-                    System.err.println("Unable to close socket");
+                    logging.logErr("Unable to disconnect socket " + port);
                 }
             });
             clientSocket.close();
         } catch (IOException e) {
-            System.err.println(e);
+            logging.logErr("Error closing client socket");
         }
     }
 
-    private static class ClientHandler extends Thread {
+    private class ClientHandler extends Thread {
         private Socket clientSocket;
         private SocketInformation serverSocket;
 
@@ -93,24 +89,20 @@ public class LoadBalancer {
                 PrintWriter clientOut = new PrintWriter(clientSocket.getOutputStream(), true);
                 BufferedReader clientIn = new BufferedReader(
                         new InputStreamReader(clientSocket.getInputStream()));
-                System.out.println(String.format("Recieved message on from %s on port %s",
+                logging.logInfo(String.format("Recieved message on from %s on port %s",
                         clientSocket.getLocalAddress(), clientSocket.getLocalPort()));
 
                 String inputLine = clientIn.readLine();
-                System.out.println("Client requested: " + inputLine);
+                logging.logInfo("Client requested: " + inputLine);
                 // Forward messages to Server
                 serverSocket.sendMessage(inputLine);
-                System.out.println("Forwarded to server");
-
                 inputLine = serverSocket.readMessage();
-                System.out.println("Sever replied: " + inputLine);
                 // Send response from server to client
                 clientOut.println(inputLine);
-                System.out.println("Forwarded server reply");
                 clientIn.close();
                 clientOut.close();
                 clientSocket.close();
-                System.out.println("Terminated connection");
+                logging.logInfo("Terminated connection");
             } catch (IOException e) {
                 System.err.println(e);
             }
@@ -124,78 +116,47 @@ public class LoadBalancer {
             this.port = port;
         }
 
-        // TODO: Clean this function up
         @Override
         public void run() {
             SocketInformation socketInfo = socketTable.get(port);
-            if (socketInfo.isHealthy()) {
-                String serverResponse = makeHealthCheck(socketInfo);
-                if (!serverResponse.equals("healthy")) {
-                    setServerUnhealthy();
-                    logHealthState(StateTransition.HEALTHY_TO_UNHEALTHY);
-                } else {
-                    logHealthState(StateTransition.UNCHANGED);
-                    setServerHealthy();
-                }
+            Boolean serverPrevHealthy = socketInfo.isHealthy();
+            String serverHealth = healthCheck(socketInfo);
+            if (serverHealth.equals("healthy")) {
+                setServerHealthy();
+                logHealthState(serverPrevHealthy, true);
             } else {
-                try {
-                    socketInfo.connect();
-                    String serverResponse = makeHealthCheck(socketInfo);
-                    if (!serverResponse.equals("healthy")) {
-                        setServerUnhealthy();
-                        logHealthState(StateTransition.UNCHANGED);
-                    } else {
-                        setServerHealthy();
-                        logHealthState(StateTransition.UNHEALTHY_TO_HEALTHY);
-                    }
-                } catch (IOException e) {
-                    // Keep unhealthy state
-                    logHealthState(StateTransition.UNCHANGED);
-                }
+                setServerUnhealthy();
+                logHealthState(serverPrevHealthy, false);
             }
-
         }
 
-        private String makeHealthCheck(SocketInformation s) {
+        private String healthCheck(SocketInformation s) {
             try {
+                if (!s.isHealthy()) {
+                    s.connect();
+                }
                 s.getSocket().setSoTimeout(SOCKET_TIMEOUT);
                 s.sendMessage("health");
                 String serverResponse = s.readMessage();
-                System.out.println("Recieved server health response: " + serverResponse);
                 return serverResponse;
             } catch (SocketException e) {
-                System.out.println("Socket took too long to respond to health check");
+                logging.logErr("Socket took too long to respond to health check");
                 return "unhealthy";
             } catch (IOException e) {
-                System.out.println("Issue making health reqeust");
-                System.out.println(e);
+                logging.logErr("Issue making health reqeust");
                 return "unhealthy";
             }
         }
 
-        private void logHealthState(StateTransition t) {
+        private void logHealthState(Boolean serverPrevHealthy, Boolean serverCurrHealthy) {
+            if (serverPrevHealthy == serverCurrHealthy)
+                return;
             StringBuilder sb = new StringBuilder();
             sb.append(port);
-            switch (t) {
-                case HEALTHY_TO_UNHEALTHY:
-                    sb.append(" HEALTHY -> UNHEALTHY");
-                    break;
-                case UNHEALTHY_TO_HEALTHY:
-                    sb.append(" UNHEALTHY -> HEALTHY");
-                    break;
-                case UNCHANGED:
-                    sb.append(socketTable.get(port).isHealthy() ? " remained HEALTHY" : " remained UNHEALTHY");
-                    break;
-                default:
-                    break;
-            }
-            System.out.println(sb.toString());
-        }
-
-        private enum StateTransition {
-            HEALTHY_TO_UNHEALTHY,
-            UNHEALTHY_TO_HEALTHY,
-            UNCHANGED
+            sb.append(serverPrevHealthy ? " HEALTHY" : " UNHEALTHY");
+            sb.append(" -> ");
+            sb.append(serverCurrHealthy ? "HEALTHY" : "UNHEALTHY");
+            logging.logInfo(sb.toString());
         }
 
         private void setServerUnhealthy() {
@@ -205,7 +166,8 @@ public class LoadBalancer {
                 info.disconnect();
                 info.setUnhealthy();
             } catch (IOException e) {
-                System.err.println("Unable to disconnect from port" + port);
+                logging.logErr("Unable to disconnect from port" + port);
+
             }
         }
 
@@ -215,7 +177,7 @@ public class LoadBalancer {
                 info.connect();
                 info.setHealthy();
             } catch (IOException e) {
-                System.out.println("Unable to connect to port " + port);
+                logging.logErr("Unable to connect to port " + port);
                 info.setHealthy();
             }
         }
@@ -223,8 +185,6 @@ public class LoadBalancer {
     }
 
     public static void main(String[] args) {
-        args = new String[] { "5555" };
-        System.out.println("Booting");
         int[] sockets = new int[args.length];
         for (int i = 0; i < args.length; i++) {
             sockets[i] = Integer.parseInt(args[i]);

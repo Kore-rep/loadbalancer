@@ -80,7 +80,6 @@ public class SocketInformation {
     }
 
     public void sendMessage(String message) throws IOException {
-        System.out.println("Sending Message");
         PrintWriter writer = getWriter();
         writer.println(message);
     }
