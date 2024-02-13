@@ -104,7 +104,7 @@ public class LoadBalancer {
                 clientSocket.close();
                 logging.logInfo("Terminated connection");
             } catch (IOException e) {
-                System.err.println(e);
+                logging.logErr("Load Balancer error in processing message.");
             }
         }
     }
